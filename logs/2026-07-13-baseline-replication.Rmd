@@ -1,0 +1,25 @@
+---
+title: "Replication Log - Agerton et al. (2017)"
+author: "Doan Nguyen"
+date: "2026-07-10"
+output: html_document
+---
+
+```{r setup}
+library(tidyverse)
+library(haven)
+library(fixest)
+```
+
+
+```{r load-data}
+state_df <- read_dta("data/raw/state.dta")
+glimpse(state_df)
+```
+
+
+
+```{r check}
+summary(state_df$rigs_land)
+summary(state_df$ces_emp_sa)
+```
