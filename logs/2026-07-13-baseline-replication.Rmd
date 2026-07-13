@@ -9,17 +9,208 @@ output: html_document
 library(tidyverse)
 library(haven)
 library(fixest)
+library(zoo)
 ```
 
 
 ```{r load-data}
-state_df <- read_dta("data/raw/state.dta")
+state_df <- read_dta("../data/raw/state.dta")
 glimpse(state_df)
 ```
 
 
-
 ```{r check}
+state_df %>% 
+  filter(!is.na(rigs_land)) %>% 
+  summarise(min_date = min(date), max_date = max(date), n = n())
 summary(state_df$rigs_land)
 summary(state_df$ces_emp_sa)
+```
+
+## Fig. 1 — Cumulative employment growth relative to national
+
+```{r fig1-load}
+state_df <- read_dta("../data/raw/state.dta") %>%
+  mutate(state = as_factor(state),
+         date  = as.Date(zoo::as.yearmon(1960 + date/12)))
+
+natl_df <- read_dta("../data/raw/natl.dta") %>%
+  mutate(date = as.Date(zoo::as.yearmon(1960 + date/12)))
+```
+
+```{r fig1-merge}
+merged_df <- state_df %>%
+  left_join(natl_df %>% select(date, natl_ces_emp_sa), by = "date")
+```
+
+```{r fig1-base}
+xbase <- merged_df %>%
+  filter(date == as.Date("2008-01-01")) %>%
+  select(state, base_ces_emp_sa = ces_emp_sa, base_natl_ces_emp_sa = natl_ces_emp_sa)
+
+xmerge <- merged_df %>%
+  select(state, date, ces_emp_sa, natl_ces_emp_sa) %>%
+  left_join(xbase, by = "state") %>%
+  mutate(
+    stateGrowth = log(ces_emp_sa / base_ces_emp_sa) -
+                  log(natl_ces_emp_sa / base_natl_ces_emp_sa)
+  )
+```
+
+```{r fig1-groups}
+
+stateGroupings <- list(
+  "New England"               = c("Massachusetts","Vermont","New Hampshire","Maine","Connecticut","Rhode Island"),
+  "Mid-Atlantic"               = c("New York","West Virginia","Pennsylvania","New Jersey"),
+  "Rust belt"                  = c("Indiana","Wisconsin","Illinois","Ohio","Michigan"),
+  "Sun belt and housing boom"  = c("California","Florida","Arizona","Nevada"),
+  "Farm states"                = c("South Dakota","Iowa","Idaho"),
+  "Oil and gas states"         = c("North Dakota","Alaska","Texas","Louisiana","Oklahoma","Wyoming")
+)
+
+xmerge <- xmerge %>%
+  mutate(stateType = case_when(
+    state %in% stateGroupings[["New England"]]              ~ "New England",
+    state %in% stateGroupings[["Mid-Atlantic"]]              ~ "Mid-Atlantic",
+    state %in% stateGroupings[["Rust belt"]]                 ~ "Rust belt",
+    state %in% stateGroupings[["Sun belt and housing boom"]] ~ "Sun belt and housing boom",
+    state %in% stateGroupings[["Farm states"]]                ~ "Farm states",
+    state %in% stateGroupings[["Oil and gas states"]]        ~ "Oil and gas states",
+    TRUE ~ NA_character_
+  )) %>%
+  mutate(stateType = factor(stateType, levels = names(stateGroupings)))
+```
+
+```{r fig1-labels}
+
+stateLabelDate <- tribble(
+  ~state,           ~label_date,
+  "Massachusetts",  "2011-07-01",
+  "Vermont",        "2011-06-01",
+  "New Hampshire",  "2012-01-01",
+  "Maine",          "2012-01-01",
+  "Connecticut",    "2013-01-01",
+  "Rhode Island",   "2009-01-01",
+  "New York",       "2011-06-01",
+  "West Virginia",  "2012-01-01",
+  "Pennsylvania",   "2009-01-01",
+  "New Jersey",     "2011-01-01",
+  "Indiana",        "2012-06-01",
+  "Wisconsin",      "2009-01-01",
+  "Illinois",       "2011-12-01",
+  "Ohio",           "2010-03-01",
+  "Michigan",       "2009-06-01",
+  "California",     "2010-01-01",
+  "Florida",        "2011-06-01",
+  "Arizona",        "2012-06-01",
+  "Nevada",         "2011-01-01",
+  "South Dakota",   "2011-01-01",
+  "Iowa",           "2012-06-01",
+  "Idaho",          "2011-01-01",
+  "North Dakota",   "2012-01-01",
+  "Alaska",         "2011-01-01",
+  "Texas",          "2013-01-01",
+  "Louisiana",      "2012-06-01",
+  "Oklahoma",       "2011-01-01",
+  "Wyoming",        "2012-12-01"
+) %>%
+  mutate(label_date = as.Date(label_date))
+
+xmerge <- xmerge %>%
+  left_join(stateLabelDate, by = "state") %>%
+  mutate(displayLabel = !is.na(label_date) & date == label_date)
+```
+
+```{r fig1-plot-labeled, fig.width=12, fig.height=8}
+fig1 <- xmerge %>%
+  filter(date >= as.Date("2008-01-01"), !is.na(stateType)) %>%
+  ggplot(aes(x = date, y = stateGrowth, col = state)) +
+  geom_line() +
+  geom_hline(yintercept = 0, col = "gray70") +
+  facet_wrap(~ stateType, scales = "free") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_date(labels = scales::date_format("'%y"), minor_breaks = NULL) +
+  labs(x = "Time", y = "Cum. job growth vs nat'l") +
+  theme_bw() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text.x = element_text(size = 12)) +
+  geom_text(
+    data = xmerge %>% filter(displayLabel == TRUE),
+    aes(label = state), hjust = 0.2, vjust = -0.65,
+    fontface = "bold", size = 3
+  )
+
+fig1
+```
+
+```{r fig1-save-labeled}
+ggsave("../output/figures/fig1_relative_state_growth.png", fig1,
+       width = 12.5, height = 8.5, dpi = 300)
+```
+
+## Fig. 2 - Labor, capital, and prices in oil and gas (standardized variables)
+
+```{r fig2-prep}
+natl_df <- read_dta("../data/raw/natl.dta") %>%
+  mutate(date = as.Date(as.yearmon(1960 + date/12)))
+
+# Filter sample: keep only months with all 3 variables present
+natl_sample <- natl_df %>%
+  filter(!is.na(natl_rigs_land), !is.na(natl_ces_emp_og_sa), !is.na(wti)) %>%
+  select(date, natl_rigs_land, natl_ces_emp_og_sa, wti)
+```
+
+```{r fig2-standardize}
+standardize <- function(x) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+
+natl_std <- natl_sample %>%
+  mutate(
+    `Rig-counts` = standardize(natl_rigs_land),
+    `O&G Emp`    = standardize(natl_ces_emp_og_sa),
+    `WTI`        = standardize(wti)
+  ) %>%
+  select(date, `Rig-counts`, `O&G Emp`, `WTI`) %>%
+  pivot_longer(cols = -date, names_to = "variable", values_to = "value") %>%
+  mutate(variable = factor(variable, levels = c("Rig-counts", "O&G Emp", "WTI")))
+```
+
+```{r fig2-labels}
+# Flag one point per variable to place its label on the plot (matches original)
+natl_std <- natl_std %>%
+  mutate(displayme = case_when(
+    variable == "Rig-counts" & date == as.Date("2001-07-01") ~ TRUE,
+    variable == "O&G Emp"    & date == as.Date("1991-01-01") ~ TRUE,
+    variable == "WTI"        & date == as.Date("2008-07-01") ~ TRUE,
+    TRUE ~ FALSE
+  ))
+```
+
+```{r fig2-plot, fig.width=8, fig.height=5}
+fig2 <- ggplot(natl_std, aes(x = date, y = value, col = variable,
+                              linetype = variable, label = variable)) +
+  geom_line() +
+  labs(x = "", y = "") +
+  scale_x_date(
+    breaks = seq(as.Date("1990-01-01"), as.Date("2015-01-01"), by = "5 years"),
+    date_labels = "%Y"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  ) +
+  geom_text(
+    data = natl_std %>% filter(displayme == TRUE),
+    aes(label = variable), hjust = c(0.5, 0.5, 1.5), vjust = c(-1, -1, 1)
+  )
+
+fig2
+```
+
+```{r fig2-save}
+ggsave("../output/figures/fig2_natl_standardized.png", fig2,
+       width = 7.25, height = 4.5, dpi = 300)
 ```

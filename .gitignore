@@ -5,5 +5,4 @@
 data/raw/*.dta
 data/raw/*.Rdata
 renv/library/
-output/figures/*.png
 *.html

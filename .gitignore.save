@@ -1,0 +1,16 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+data/raw/
+renv/library/
+*.ht.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+data/raw/*.dta
+data/raw/*.Rdata
+renv/library/
+output/figures/*.png
+*.html
