@@ -214,3 +214,143 @@ fig2
 ggsave("../output/figures/fig2_natl_standardized.png", fig2,
        width = 7.25, height = 4.5, dpi = 300)
 ```
+
+**Note:** Initially attempted this table using `state.dta`, scaling `ces_emp_sa`
+and `rigs_land` by an interpolated `pop` value pinned to Jan 2000. Results were
+off by ~28% from the paper's reported b(1)=149.8/LRM=315.19, even after
+correcting for the units mismatch (CES employment is reported in thousands)
+and restricting the sample to the paper's 48-state subset (excluding Alaska
+and Hawaii). Cross-checked against the authors' own replication scripts
+(`load libraries and data v2.R`, `estimation - per_capita.R`) and found they
+use a separate `pop2000` variable (exact Census-year population, not
+interpolated) stored in `state-data-2016-08-11.Rdata`. Switched to this file
+as the primary data source going forward.
+
+## Table A.1 - Base model (1) in per-capita terms
+
+```{r tableA1-load}
+load("../data/raw/state-data-2016-08-11.Rdata")
+state_df <- as.data.frame(state.dat)
+rm(state.dat)
+
+state_df$date  <- as.Date(as.yearmon(state_df$date))
+state_df$state <- as.character(state_df$state)
+state_df <- state_df[order(state_df$state, state_df$date), ]
+```
+
+```{r tableA1-check-vars}
+# Confirm pop2000 exists and looks right for Texas
+subset(state_df, state == "Texas" & format(date, "%Y-%m") == "2000-01",
+       select = c(state, date, pop2000, pop1990))
+```
+
+```{r tableA1-scale}
+state_df$rigs_pc <- (state_df$rigs_land / state_df$pop2000) * 1000
+state_df$emp_pc  <- (state_df$ces_emp_sa * 1000 / state_df$pop2000) * 1000
+```
+
+```{r tableA1-diff}
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+  d_emp_pc  = emp_pc  - lag(emp_pc),
+  d_rigs_pc = rigs_pc - lag(rigs_pc)
+)
+state_df <- ungroup(state_df)
+```
+
+```{r tableA1-lags}
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+  d_emp_pc_L1  = lag(d_emp_pc, 1),
+  d_emp_pc_L2  = lag(d_emp_pc, 2),
+  d_emp_pc_L3  = lag(d_emp_pc, 3),
+  d_emp_pc_L4  = lag(d_emp_pc, 4),
+  d_emp_pc_L5  = lag(d_emp_pc, 5),
+  d_emp_pc_L6  = lag(d_emp_pc, 6),
+  d_emp_pc_L7  = lag(d_emp_pc, 7),
+  d_emp_pc_L8  = lag(d_emp_pc, 8),
+  d_emp_pc_L9  = lag(d_emp_pc, 9),
+  d_emp_pc_L10 = lag(d_emp_pc, 10),
+  d_emp_pc_L11 = lag(d_emp_pc, 11),
+  d_emp_pc_L12 = lag(d_emp_pc, 12),
+  d_rigs_pc_L1  = lag(d_rigs_pc, 1),
+  d_rigs_pc_L2  = lag(d_rigs_pc, 2),
+  d_rigs_pc_L3  = lag(d_rigs_pc, 3),
+  d_rigs_pc_L4  = lag(d_rigs_pc, 4),
+  d_rigs_pc_L5  = lag(d_rigs_pc, 5),
+  d_rigs_pc_L6  = lag(d_rigs_pc, 6),
+  d_rigs_pc_L7  = lag(d_rigs_pc, 7),
+  d_rigs_pc_L8  = lag(d_rigs_pc, 8),
+  d_rigs_pc_L9  = lag(d_rigs_pc, 9),
+  d_rigs_pc_L10 = lag(d_rigs_pc, 10)
+)
+state_df <- ungroup(state_df)
+```
+
+```{r}
+state_names <- unique(state_df$state)
+dc_actual <- grep("Columbia", state_names, value = TRUE)
+print(dc_actual)
+charToRaw(dc_actual)
+charToRaw("District of Columbia")
+```
+
+```{r tableA1-sample}
+reg_sample <- filter(state_df,
+  date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+  !grepl("Alaska|Hawaii|Columbia", state)
+)
+reg_sample <- mutate(reg_sample,
+  state_month = interaction(state, format(date, "%m"), drop = TRUE)
+)
+
+nrow(reg_sample)
+length(unique(reg_sample$state))
+```
+
+```{r}
+
+setdiff(c("Alaska", "Hawaii", "District of Columbia"), unique(reg_sample$state))
+grep("Columbia", unique(state_df$state), value = TRUE)
+```
+
+```{r}
+nrow(reg_sample)
+length(unique(reg_sample$state))
+```
+
+
+```{r tableA1-model}
+model1 <- feols(
+  d_emp_pc ~ d_rigs_pc + d_rigs_pc_L1 + d_rigs_pc_L2 + d_rigs_pc_L3 +
+             d_rigs_pc_L4 + d_rigs_pc_L5 + d_rigs_pc_L6 + d_rigs_pc_L7 +
+             d_rigs_pc_L8 + d_rigs_pc_L9 + d_rigs_pc_L10 +
+             d_emp_pc_L1 + d_emp_pc_L2 + d_emp_pc_L3 + d_emp_pc_L4 +
+             d_emp_pc_L5 + d_emp_pc_L6 + d_emp_pc_L7 + d_emp_pc_L8 +
+             d_emp_pc_L9 + d_emp_pc_L10 + d_emp_pc_L11 + d_emp_pc_L12
+  | state_month + date,
+  data = reg_sample,
+  panel.id = ~state + date
+)
+summary(model1)
+```
+
+```{r tableA1-se-variants}
+se_ols     <- summary(model1, vcov = "iid")
+se_cluster <- summary(model1, vcov = ~state + date)
+se_dk      <- summary(model1, vcov = "DK")
+se_ols
+se_cluster
+se_dk
+```
+
+```{r tableA1-lrm}
+rig_coefs <- coef(model1)[grepl("^d_rigs_pc", names(coef(model1)))]
+emp_coefs <- coef(model1)[grepl("^d_emp_pc_L", names(coef(model1)))]
+b1  <- sum(rig_coefs)
+a1  <- sum(emp_coefs)
+LRM <- b1 / (1 - a1)
+cat("b(1) =", round(b1, 3), "\n")
+cat("a(1) =", round(a1, 3), "\n")
+cat("LRM  =", round(LRM, 3), "\n")
+```
