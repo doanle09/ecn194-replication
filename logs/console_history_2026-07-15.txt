@@ -1,0 +1,512 @@
+)
+nrow(reg_sample)                    # should be 12,720
+length(unique(reg_sample$state))    # should be 48
+setdiff(c("Alaska", "Hawaii", "District of Columbia"), unique(reg_sample$state))
+setdiff(c("Alaska", "Hawaii", "District of Columbia"), unique(reg_sample$state))
+grep("Columbia", unique(state_df$state), value = TRUE)
+nrow(reg_sample)
+length(unique(reg_sample$state))
+state_names <- unique(state_df$state)
+dc_actual <- grep("Columbia", state_names, value = TRUE)
+print(dc_actual)
+charToRaw(dc_actual)
+charToRaw("District of Columbia")
+state_names <- unique(state_df$state)
+dc_actual <- grep("Columbia", state_names, value = TRUE)
+print(dc_actual)
+charToRaw(dc_actual)
+charToRaw("District of Columbia")
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+reg_sample <- mutate(reg_sample,
+state_month = interaction(state, format(date, "%m"), drop = TRUE)
+)
+nrow(reg_sample)
+length(unique(reg_sample$state))
+library(tidyverse)
+library(haven)
+library(fixest)
+library(zoo)
+sort(unique(reg_sample$state))
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+reg_sample <- mutate(reg_sample,
+state_month = interaction(state, format(date, "%m"), drop = TRUE)
+)
+nrow(reg_sample)
+length(unique(reg_sample$state))
+View(state_df)
+state_raw <- unique(reg_sample$state)
+state_trimmed <- trimws(state_raw)
+length(state_raw)
+length(unique(state_trimmed))
+known_48 <- c("Alabama","Arizona","Arkansas","California","Colorado","Connecticut",
+"Delaware","Florida","Georgia","Idaho","Illinois","Indiana","Iowa","Kansas",
+"Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota",
+"Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey",
+"New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon",
+"Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas",
+"Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming")
+setdiff(unique(reg_sample$state), known_48)
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!is.na(state),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+reg_sample <- mutate(reg_sample,
+state_month = interaction(state, format(date, "%m"), drop = TRUE)
+)
+nrow(reg_sample)
+length(unique(reg_sample$state))
+sum(is.na(state_df$state))
+state_df %>% filter(is.na(state)) %>% head()
+model1 <- feols(
+d_emp_pc ~ d_rigs_pc + d_rigs_pc_L1 + d_rigs_pc_L2 + d_rigs_pc_L3 +
+d_rigs_pc_L4 + d_rigs_pc_L5 + d_rigs_pc_L6 + d_rigs_pc_L7 +
+d_rigs_pc_L8 + d_rigs_pc_L9 + d_rigs_pc_L10 +
+d_emp_pc_L1 + d_emp_pc_L2 + d_emp_pc_L3 + d_emp_pc_L4 +
+d_emp_pc_L5 + d_emp_pc_L6 + d_emp_pc_L7 + d_emp_pc_L8 +
+d_emp_pc_L9 + d_emp_pc_L10 + d_emp_pc_L11 + d_emp_pc_L12
+| state_month + date,
+data = reg_sample,
+panel.id = ~state + date
+)
+summary(model1)
+se_ols     <- summary(model1, vcov = "iid")
+se_cluster <- summary(model1, vcov = ~state + date)
+se_dk      <- summary(model1, vcov = "DK")
+se_ols
+se_cluster
+se_dk
+rig_coefs <- coef(model1)[grepl("^d_rigs_pc", names(coef(model1)))]
+emp_coefs <- coef(model1)[grepl("^d_emp_pc_L", names(coef(model1)))]
+b1  <- sum(rig_coefs)
+a1  <- sum(emp_coefs)
+LRM <- b1 / (1 - a1)
+cat("b(1) =", round(b1, 3), "\n")
+cat("a(1) =", round(a1, 3), "\n")
+cat("LRM  =", round(LRM, 3), "\n")
+load("../data/raw/state-data-2016-08-11.Rdata")
+state_df <- as.data.frame(state.dat)
+rm(state.dat)
+state_df$date  <- as.Date(as.yearmon(state_df$date))
+state_df$state <- as.character(state_df$state)
+state_df <- state_df[order(state_df$state, state_df$date), ]
+# Confirm pop2000 exists and looks right for Texas
+subset(state_df, state == "Texas" & format(date, "%Y-%m") == "2000-01",
+select = c(state, date, pop2000, pop1990))
+state_df$rigs_pc <- (state_df$rigs_land / state_df$pop2000) * 1000
+state_df$emp_pc  <- (state_df$ces_emp_sa * 1000 / state_df$pop2000) * 1000
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc  = emp_pc  - lag(emp_pc),
+d_rigs_pc = rigs_pc - lag(rigs_pc)
+)
+state_df <- ungroup(state_df)
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc_L1  = lag(d_emp_pc, 1),
+d_emp_pc_L2  = lag(d_emp_pc, 2),
+d_emp_pc_L3  = lag(d_emp_pc, 3),
+d_emp_pc_L4  = lag(d_emp_pc, 4),
+d_emp_pc_L5  = lag(d_emp_pc, 5),
+d_emp_pc_L6  = lag(d_emp_pc, 6),
+d_emp_pc_L7  = lag(d_emp_pc, 7),
+d_emp_pc_L8  = lag(d_emp_pc, 8),
+d_emp_pc_L9  = lag(d_emp_pc, 9),
+d_emp_pc_L10 = lag(d_emp_pc, 10),
+d_emp_pc_L11 = lag(d_emp_pc, 11),
+d_emp_pc_L12 = lag(d_emp_pc, 12),
+d_rigs_pc_L1  = lag(d_rigs_pc, 1),
+d_rigs_pc_L2  = lag(d_rigs_pc, 2),
+d_rigs_pc_L3  = lag(d_rigs_pc, 3),
+d_rigs_pc_L4  = lag(d_rigs_pc, 4),
+d_rigs_pc_L5  = lag(d_rigs_pc, 5),
+d_rigs_pc_L6  = lag(d_rigs_pc, 6),
+d_rigs_pc_L7  = lag(d_rigs_pc, 7),
+d_rigs_pc_L8  = lag(d_rigs_pc, 8),
+d_rigs_pc_L9  = lag(d_rigs_pc, 9),
+d_rigs_pc_L10 = lag(d_rigs_pc, 10)
+)
+state_df <- ungroup(state_df)
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!is.na(state),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+reg_sample <- mutate(reg_sample,
+state_month = interaction(state, format(date, "%m"), drop = TRUE)
+)
+nrow(reg_sample)
+length(unique(reg_sample$state))
+model1 <- feols(
+d_emp_pc ~ d_rigs_pc + d_rigs_pc_L1 + d_rigs_pc_L2 + d_rigs_pc_L3 +
+d_rigs_pc_L4 + d_rigs_pc_L5 + d_rigs_pc_L6 + d_rigs_pc_L7 +
+d_rigs_pc_L8 + d_rigs_pc_L9 + d_rigs_pc_L10 +
+d_emp_pc_L1 + d_emp_pc_L2 + d_emp_pc_L3 + d_emp_pc_L4 +
+d_emp_pc_L5 + d_emp_pc_L6 + d_emp_pc_L7 + d_emp_pc_L8 +
+d_emp_pc_L9 + d_emp_pc_L10 + d_emp_pc_L11 + d_emp_pc_L12
+| state_month + date,
+data = reg_sample,
+panel.id = ~state + date
+)
+summary(model1)
+se_ols     <- summary(model1, vcov = "iid")
+se_cluster <- summary(model1, vcov = ~state + date)
+se_dk      <- summary(model1, vcov = "DK")
+se_ols
+se_cluster
+se_dk
+rig_coefs <- coef(model1)[grepl("^d_rigs_pc", names(coef(model1)))]
+emp_coefs <- coef(model1)[grepl("^d_emp_pc_L", names(coef(model1)))]
+b1  <- sum(rig_coefs)
+a1  <- sum(emp_coefs)
+LRM <- b1 / (1 - a1)
+cat("b(1) =", round(b1, 3), "\n")
+cat("a(1) =", round(a1, 3), "\n")
+cat("LRM  =", round(LRM, 3), "\n")
+state_df %>%
+filter(state %in% c("Wyoming", "North Dakota")) %>%
+mutate(rigs_per_million = rigs_land / pop2000 * 1e6) %>%
+group_by(state) %>%
+summarise(max_rigs_per_million = max(rigs_per_million, na.rm = TRUE))
+state_df %>% count(state, date) %>% filter(n > 1) %>% nrow()
+state_df %>% filter(state == "Texas") %>% summarise(max_rigs = max(rigs_land, na.rm = TRUE))
+state_df %>%
+filter(state %in% c("Wyoming", "North Dakota"),
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01")) %>%
+mutate(rigs_per_million = rigs_land / pop2000 * 1e6) %>%
+group_by(state) %>%
+summarise(max_rigs_per_million = max(rigs_per_million, na.rm = TRUE))
+state_df %>%
+filter(state %in% c("Wyoming", "North Dakota"),
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01")) %>%
+mutate(rigs_per_million = rigs_land / pop2000 * 1e6) %>%
+group_by(state) %>%
+summarise(mean_rigs_per_million = mean(rigs_per_million, na.rm = TRUE))
+state_df %>%
+filter(!is.na(state)) %>%
+arrange(state, date) %>%
+group_by(state) %>%
+mutate(gap = as.numeric(date - lag(date))) %>%
+filter(gap > 31) %>%
+select(state, date, gap)
+state_df %>%
+filter(state == "Texas") %>%
+distinct(pop2000) %>%
+nrow()
+nobs(model1)
+state_df %>%
+filter(!is.na(state)) %>%
+group_by(state) %>%
+summarise(pop2000_na = all(is.na(pop2000))) %>%
+filter(pop2000_na == TRUE)
+reg_sample %>%
+group_by(state) %>%
+summarise(all_na_rigs = all(is.na(rigs_pc)), all_na_emp = all(is.na(emp_pc))) %>%
+filter(all_na_rigs | all_na_emp)
+state_df %>% filter(state == "Connecticut") %>%
+summarise(n = n(), n_na = sum(is.na(rigs_land)), n_zero = sum(rigs_land == 0, na.rm = TRUE))
+state_df$rigs_land[is.na(state_df$rigs_land)] <- 0
+state_df$rigs_land[is.na(state_df$rigs_land)] <- 0
+nrow(reg_sample)
+length(unique(reg_sample$state))
+nobs(model1)
+state_df %>%
+filter(!is.na(state)) %>%
+group_by(state) %>%
+summarise(all_na_rigs = all(is.na(rigs_land))) %>%
+filter(all_na_rigs == TRUE)
+state_df$rigs_land[is.na(state_df$rigs_land)] <- 0
+nrow(reg_sample)
+length(unique(reg_sample$state))
+nobs(model1)
+# --- Load data ---
+load("../data/raw/state-data-2016-08-11.Rdata")
+state_df <- as.data.frame(state.dat)
+rm(state.dat)
+state_df$date  <- as.Date(as.yearmon(state_df$date))
+state_df$state <- as.character(state_df$state)
+# Drop rows with missing state (e.g. national-total placeholder rows)
+state_df <- state_df[!is.na(state_df$state), ]
+# States with no drilling activity report NA instead of 0 - fix for ALL states
+state_df$rigs_land[is.na(state_df$rigs_land)] <- 0
+state_df <- state_df[order(state_df$state, state_df$date), ]
+# --- Scale by fixed year-2000 population ---
+state_df$rigs_pc <- (state_df$rigs_land / state_df$pop2000) * 1000
+state_df$emp_pc  <- (state_df$ces_emp_sa * 1000 / state_df$pop2000) * 1000
+# --- First differences within state ---
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc  = emp_pc  - lag(emp_pc),
+d_rigs_pc = rigs_pc - lag(rigs_pc)
+)
+state_df <- ungroup(state_df)
+# --- Lags (12 for employment, 10 for rigs) ---
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc_L1  = lag(d_emp_pc, 1),  d_emp_pc_L2  = lag(d_emp_pc, 2),
+d_emp_pc_L3  = lag(d_emp_pc, 3),  d_emp_pc_L4  = lag(d_emp_pc, 4),
+d_emp_pc_L5  = lag(d_emp_pc, 5),  d_emp_pc_L6  = lag(d_emp_pc, 6),
+d_emp_pc_L7  = lag(d_emp_pc, 7),  d_emp_pc_L8  = lag(d_emp_pc, 8),
+d_emp_pc_L9  = lag(d_emp_pc, 9),  d_emp_pc_L10 = lag(d_emp_pc, 10),
+d_emp_pc_L11 = lag(d_emp_pc, 11), d_emp_pc_L12 = lag(d_emp_pc, 12),
+d_rigs_pc_L1 = lag(d_rigs_pc, 1), d_rigs_pc_L2 = lag(d_rigs_pc, 2),
+d_rigs_pc_L3 = lag(d_rigs_pc, 3), d_rigs_pc_L4 = lag(d_rigs_pc, 4),
+d_rigs_pc_L5 = lag(d_rigs_pc, 5), d_rigs_pc_L6 = lag(d_rigs_pc, 6),
+d_rigs_pc_L7 = lag(d_rigs_pc, 7), d_rigs_pc_L8 = lag(d_rigs_pc, 8),
+d_rigs_pc_L9 = lag(d_rigs_pc, 9), d_rigs_pc_L10 = lag(d_rigs_pc, 10)
+)
+state_df <- ungroup(state_df)
+# --- Restrict sample: 48 states, Feb 1992 - Feb 2014 ---
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+reg_sample <- mutate(reg_sample,
+state_month = interaction(state, format(date, "%m"), drop = TRUE)
+)
+cat("Rows:", nrow(reg_sample), " | States:", length(unique(reg_sample$state)), "\n")
+# --- Estimate model ---
+model1 <- feols(
+d_emp_pc ~ d_rigs_pc + d_rigs_pc_L1 + d_rigs_pc_L2 + d_rigs_pc_L3 +
+d_rigs_pc_L4 + d_rigs_pc_L5 + d_rigs_pc_L6 + d_rigs_pc_L7 +
+d_rigs_pc_L8 + d_rigs_pc_L9 + d_rigs_pc_L10 +
+d_emp_pc_L1 + d_emp_pc_L2 + d_emp_pc_L3 + d_emp_pc_L4 +
+d_emp_pc_L5 + d_emp_pc_L6 + d_emp_pc_L7 + d_emp_pc_L8 +
+d_emp_pc_L9 + d_emp_pc_L10 + d_emp_pc_L11 + d_emp_pc_L12
+| state_month + date,
+data = reg_sample,
+panel.id = ~state + date
+)
+cat("Observations used in model:", nobs(model1), "\n")
+summary(model1)
+# --- Standard errors: OLS, Cluster, Driscoll-Kraay ---
+se_ols     <- summary(model1, vcov = "iid")
+se_cluster <- summary(model1, vcov = ~state + date)
+se_dk      <- summary(model1, vcov = "DK")
+se_ols
+se_cluster
+se_dk
+# --- Long-run multiplier ---
+rig_coefs <- coef(model1)[grepl("^d_rigs_pc", names(coef(model1)))]
+emp_coefs <- coef(model1)[grepl("^d_emp_pc_L", names(coef(model1)))]
+b1  <- sum(rig_coefs)
+a1  <- sum(emp_coefs)
+LRM <- b1 / (1 - a1)
+cat("b(1) =", round(b1, 3), "\n")
+cat("a(1) =", round(a1, 3), "\n")
+cat("LRM  =", round(LRM, 3), "\n")
+# ============ STEP 1: Load data ============
+load("../data/raw/state-data-2016-08-11.Rdata")
+state_df <- as.data.frame(state.dat)
+rm(state.dat)
+state_df$date  <- as.Date(as.yearmon(state_df$date))
+state_df$state <- as.character(state_df$state)
+state_df <- state_df[!is.na(state_df$state), ]
+# ============ STEP 2: Fix NA rig counts (no drilling = 0, not missing) ============
+state_df$rigs_land[is.na(state_df$rigs_land)] <- 0
+state_df <- state_df[order(state_df$state, state_df$date), ]
+# ============ STEP 3: Scale by fixed pop2000 (jobs/rigs per 1000 people) ============
+state_df$rigs_pc <- (state_df$rigs_land / state_df$pop2000) * 1000
+state_df$emp_pc  <- (state_df$ces_emp_sa * 1000 / state_df$pop2000) * 1000
+# ============ STEP 4: First differences within state ============
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc  = emp_pc  - lag(emp_pc),
+d_rigs_pc = rigs_pc - lag(rigs_pc)
+)
+state_df <- ungroup(state_df)
+# ============ STEP 5: Lags - 12 for employment, 10 for rigs ============
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc_L1  = lag(d_emp_pc, 1),  d_emp_pc_L2  = lag(d_emp_pc, 2),
+d_emp_pc_L3  = lag(d_emp_pc, 3),  d_emp_pc_L4  = lag(d_emp_pc, 4),
+d_emp_pc_L5  = lag(d_emp_pc, 5),  d_emp_pc_L6  = lag(d_emp_pc, 6),
+d_emp_pc_L7  = lag(d_emp_pc, 7),  d_emp_pc_L8  = lag(d_emp_pc, 8),
+d_emp_pc_L9  = lag(d_emp_pc, 9),  d_emp_pc_L10 = lag(d_emp_pc, 10),
+d_emp_pc_L11 = lag(d_emp_pc, 11), d_emp_pc_L12 = lag(d_emp_pc, 12),
+d_rigs_pc_L1 = lag(d_rigs_pc, 1), d_rigs_pc_L2 = lag(d_rigs_pc, 2),
+d_rigs_pc_L3 = lag(d_rigs_pc, 3), d_rigs_pc_L4 = lag(d_rigs_pc, 4),
+d_rigs_pc_L5 = lag(d_rigs_pc, 5), d_rigs_pc_L6 = lag(d_rigs_pc, 6),
+d_rigs_pc_L7 = lag(d_rigs_pc, 7), d_rigs_pc_L8 = lag(d_rigs_pc, 8),
+d_rigs_pc_L9 = lag(d_rigs_pc, 9), d_rigs_pc_L10 = lag(d_rigs_pc, 10)
+)
+state_df <- ungroup(state_df)
+# ============ STEP 6: Restrict to 48-state, Feb1992-Feb2014 sample ============
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+cat("Rows:", nrow(reg_sample), "| States:", length(unique(reg_sample$state)), "\n")
+# ============ STEP 7: Estimate model - FE = state + date (per authors' literal code) ============
+model1 <- feols(
+d_emp_pc ~ d_rigs_pc + d_rigs_pc_L1 + d_rigs_pc_L2 + d_rigs_pc_L3 +
+d_rigs_pc_L4 + d_rigs_pc_L5 + d_rigs_pc_L6 + d_rigs_pc_L7 +
+d_rigs_pc_L8 + d_rigs_pc_L9 + d_rigs_pc_L10 +
+d_emp_pc_L1 + d_emp_pc_L2 + d_emp_pc_L3 + d_emp_pc_L4 +
+d_emp_pc_L5 + d_emp_pc_L6 + d_emp_pc_L7 + d_emp_pc_L8 +
+d_emp_pc_L9 + d_emp_pc_L10 + d_emp_pc_L11 + d_emp_pc_L12
+| state + date,
+data = reg_sample,
+panel.id = ~state + date
+)
+cat("Observations used in model:", nobs(model1), "\n")
+summary(model1)
+# ============ STEP 8: Three standard error types ============
+se_ols     <- summary(model1, vcov = "iid")
+se_cluster <- summary(model1, vcov = ~state + date)
+se_dk      <- summary(model1, vcov = "DK")
+se_ols
+se_cluster
+se_dk
+# ============ STEP 9: Long-run multiplier ============
+rig_coefs <- coef(model1)[grepl("^d_rigs_pc", names(coef(model1)))]
+emp_coefs <- coef(model1)[grepl("^d_emp_pc_L", names(coef(model1)))]
+b1  <- sum(rig_coefs)
+a1  <- sum(emp_coefs)
+LRM <- b1 / (1 - a1)
+cat("b(1) =", round(b1, 3), " | a(1) =", round(a1, 3), " | LRM =", round(LRM, 3), "\n")
+# ============ STEP 1: Load data ============
+load("../data/raw/state-data-2016-08-11.Rdata")
+state_df <- as.data.frame(state.dat)
+rm(state.dat)
+state_df$date  <- as.Date(as.yearmon(state_df$date))
+state_df$state <- as.character(state_df$state)
+state_df <- state_df[!is.na(state_df$state), ]
+# ============ STEP 2: Fix NA rig counts (no drilling = 0, not missing) ============
+state_df$rigs_land[is.na(state_df$rigs_land)] <- 0
+state_df <- state_df[order(state_df$state, state_df$date), ]
+# ============ STEP 3: Scale by fixed pop2000 (jobs/rigs per 1000 people) ============
+state_df$rigs_pc <- (state_df$rigs_land / state_df$pop2000) * 1000
+state_df$emp_pc  <- (state_df$ces_emp_sa * 1000 / state_df$pop2000) * 1000
+# ============ STEP 4: First differences within state ============
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc  = emp_pc  - lag(emp_pc),
+d_rigs_pc = rigs_pc - lag(rigs_pc)
+)
+state_df <- ungroup(state_df)
+# ============ STEP 5: Lags - 12 for employment, 10 for rigs ============
+state_df <- group_by(state_df, state)
+state_df <- mutate(state_df,
+d_emp_pc_L1  = lag(d_emp_pc, 1),  d_emp_pc_L2  = lag(d_emp_pc, 2),
+d_emp_pc_L3  = lag(d_emp_pc, 3),  d_emp_pc_L4  = lag(d_emp_pc, 4),
+d_emp_pc_L5  = lag(d_emp_pc, 5),  d_emp_pc_L6  = lag(d_emp_pc, 6),
+d_emp_pc_L7  = lag(d_emp_pc, 7),  d_emp_pc_L8  = lag(d_emp_pc, 8),
+d_emp_pc_L9  = lag(d_emp_pc, 9),  d_emp_pc_L10 = lag(d_emp_pc, 10),
+d_emp_pc_L11 = lag(d_emp_pc, 11), d_emp_pc_L12 = lag(d_emp_pc, 12),
+d_rigs_pc_L1 = lag(d_rigs_pc, 1), d_rigs_pc_L2 = lag(d_rigs_pc, 2),
+d_rigs_pc_L3 = lag(d_rigs_pc, 3), d_rigs_pc_L4 = lag(d_rigs_pc, 4),
+d_rigs_pc_L5 = lag(d_rigs_pc, 5), d_rigs_pc_L6 = lag(d_rigs_pc, 6),
+d_rigs_pc_L7 = lag(d_rigs_pc, 7), d_rigs_pc_L8 = lag(d_rigs_pc, 8),
+d_rigs_pc_L9 = lag(d_rigs_pc, 9), d_rigs_pc_L10 = lag(d_rigs_pc, 10)
+)
+state_df <- ungroup(state_df)
+# ============ STEP 6: Restrict to 48-state, Feb1992-Feb2014 sample ============
+reg_sample <- filter(state_df,
+date >= as.Date("1992-02-01"), date <= as.Date("2014-02-01"),
+!grepl("Alaska|Hawaii|Columbia", state)
+)
+cat("Rows:", nrow(reg_sample), "| States:", length(unique(reg_sample$state)), "\n")
+# ============ STEP 7: Estimate model - FE = state + date (per authors' literal code) ============
+model1 <- feols(
+d_emp_pc ~ d_rigs_pc + d_rigs_pc_L1 + d_rigs_pc_L2 + d_rigs_pc_L3 +
+d_rigs_pc_L4 + d_rigs_pc_L5 + d_rigs_pc_L6 + d_rigs_pc_L7 +
+d_rigs_pc_L8 + d_rigs_pc_L9 + d_rigs_pc_L10 +
+d_emp_pc_L1 + d_emp_pc_L2 + d_emp_pc_L3 + d_emp_pc_L4 +
+d_emp_pc_L5 + d_emp_pc_L6 + d_emp_pc_L7 + d_emp_pc_L8 +
+d_emp_pc_L9 + d_emp_pc_L10 + d_emp_pc_L11 + d_emp_pc_L12
+| statemonth + date,
+data = reg_sample,
+panel.id = ~state + date
+)
+cat("Observations used in model:", nobs(model1), "\n")
+summary(model1)
+# ============ STEP 8: Three standard error types ============
+se_ols     <- summary(model1, vcov = "iid")
+se_cluster <- summary(model1, vcov = ~state + date)
+se_dk      <- summary(model1, vcov = "DK")
+se_ols
+se_cluster
+se_dk
+# ============ STEP 9: Long-run multiplier ============
+rig_coefs <- coef(model1)[grepl("^d_rigs_pc", names(coef(model1)))]
+emp_coefs <- coef(model1)[grepl("^d_emp_pc_L", names(coef(model1)))]
+b1  <- sum(rig_coefs)
+a1  <- sum(emp_coefs)
+LRM <- b1 / (1 - a1)
+cat("b(1) =", round(b1, 3), " | a(1) =", round(a1, 3), " | LRM =", round(LRM, 3), "\n")
+library(gert)
+git_add(".")
+git_commit("[baseline] Table A.1 attempt - close but not exact match (b(1)=110.8 vs target 149.8). Logged open questions for follow-up.")
+git_push()
+library(gert)
+git_add(".")
+git_commit("[baseline] Table A.1 attempt - close but not exact match (b(1)=110.8 vs target 149.8). Logged open questions for follow-up.")
+git_push()
+list.dirs(recursive = FALSE)
+list.files("R")
+source("R/functions - estimation.R")
+"R.utils" %in% (.packages())
+library(R.utils)
+install.packages("R.utils")
+source("R/functions - estimation.R")
+library(R.utils)
+exists("reassignInPackage")
+source("R/functions - estimation.R")
+library(data.table)
+library(foreign)
+library(plm)
+"lfe" %in% (.packages())
+"R.utils" %in% (.packages())
+required_pkgs <- c("data.table", "foreign", "plm", "lfe", "R.utils", "sandwich",
+"zoo", "lmtest", "expm", "car", "plyr", "reshape2",
+"ggplot2", "texreg", "arrayhelpers", "scales")
+missing_pkgs <- required_pkgs[!required_pkgs %in% rownames(installed.packages())]
+missing_pkgs
+install.packages(missing_pkgs)
+source("R/functions - estimation.R")
+library(lfe)
+install.packages("lfe")
+install.packages("lfe")
+library(data.table); library(foreign); library(plm); library(lfe)
+install.packages("plm")
+library(data.table); library(foreign); library(plm); library(lfe)
+library(R.utils); library(sandwich); library(zoo); library(lmtest)
+library(expm); library(car); library(plyr); library(reshape2)
+required_pkgs <- c("data.table", "foreign", "plm", "lfe", "R.utils", "sandwich",
+"zoo", "lmtest", "expm", "car", "plyr", "reshape2",
+"ggplot2", "texreg", "arrayhelpers", "scales")
+missing <- required_pkgs[!required_pkgs %in% rownames(installed.packages())]
+missing
+install.packages(missing)
+required_pkgs <- c("data.table", "foreign", "plm", "lfe", "R.utils", "sandwich",
+"zoo", "lmtest", "expm", "car", "plyr", "reshape2",
+"ggplot2", "texreg", "arrayhelpers", "scales")
+missing <- required_pkgs[!required_pkgs %in% rownames(installed.packages())]
+missing
+source("R/functions - estimation.R")
+source("R/functions - post estimation.R")
+source("R/functions - irf.R")
+source("R/functions - plotting.R")
+readLines("load_libraries_and_data_v2.R")[1:20]
+source("R/load_libraries_and_data_v2.R")
+list.files("R")
+source("R/load libraries and data v2.R")
+dir.create("dat", showWarnings = FALSE)
+file.copy("data/raw/state-data-2016-08-11.Rdata", "dat/state-data-2016-08-11.Rdata")
+file.copy("data/raw/natl-data-2016-08-11.Rdata", "dat/natl-data-2016-08-11.Rdata")
+source("R/load libraries and data v2.R")
+source("R/estimation - per_capita.R")
+list.files("R")
+source("R/estimation - per capita.R")
+source("R/estimation - per capita.R")
+file.copy("data/raw/state.dta", "dat/state.dta")
+file.copy("data/raw/natl.dta", "dat/natl.dta")
+source("R/estimation - per capita.R")
+savehistory("logs/console_history_2026-07-15.Rhistory")

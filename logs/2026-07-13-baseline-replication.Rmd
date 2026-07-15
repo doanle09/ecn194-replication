@@ -1,9 +1,13 @@
 ---
 title: "Replication Log - Agerton et al. (2017)"
-author: "Doan Nguyen"
+author: "Doan Le"
 date: "2026-07-10"
 output: html_document
 ---
+```{r}
+rm(list = ls())
+```
+
 
 ```{r setup}
 library(tidyverse)
